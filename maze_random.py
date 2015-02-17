@@ -6,16 +6,72 @@
 The size and branching factor of the maze can be adjusted.
 
 Coding by d.factorial [at] gmail.com.
-Class refactorization rey444xd3 [at] gmail.com
+Class refactorization and code change rey444xd3 [at] gmail.com
 '''
-import random
+from frame import *
+
+class Enemies(object):
+    def __init__(self, mazelvl):
+        self.instances = [
+            [EnemyBase("Crab", 4, 3, 2, 0, 5, 5, 4, 0, 3, 5), EnemyBase("Bat", 8, 5, 4, 0, 7, 0, 3, 0, 1, 3),
+             EnemyBase("Fox", 6, 4, 6, 0, 10, 0, 5, 0, 2, 10), EnemyBase("Wolf", 15, 8, 4, 0, 13, 0, 7, 0, 5, 7),
+            EnemyBase("Kobold", 6, 4, 7, 2, 10, 0, 7, 0, 2, 10)],
+            [],
+            [],
+            [],
+            [],
+            []
+        ]
+        self.monsters = []
+        if mazelvl in range(0, 11):
+            self.monsters.append(self.instances[0])
+        if mazelvl in range(5, 16):
+            self.monsters.append(self.instances[1])
+        if mazelvl in range(10, 21):
+            self.monsters.append(self.instances[2])
+        if mazelvl in range(15, 26):
+            self.monsters.append(self.instances[3])
+        if mazelvl in range(25, 31):
+            self.monsters.append(self.instances[4])
+        if mazelvl is 31:
+            #final boss
+            self.monsters = []
+            self.monsters.append(self.instances[5])
+
+class Room(object):
+    def __init__(self, symbol, type="empty", *args):
+        self.symbol = symbol
+        self.type = type
+        self.args = args
+
+        if self.type == "wall":
+            self.collision = True
+            self.fight = False
+
+        if self.type == "enemy":
+            self.collision = False
+            self.fight = True
+            try:
+                self.enemy_cls = self.args[0]
+            except IndexError:
+                self.enemy_cls = None
+
+        if self.type == "empty":
+            self.collision = False
+            self.fight= False
+
+
+        #else:
+        #    self.collision = True
+        #    self.enemy = False
 
 
 class Maze(object):
-    def __init__(self, xwide, yhigh):
+    def __init__(self, xwide, yhigh, player_cls):
         self.xwide = xwide
         self.yhigh = yhigh
-
+        self.Player = player_cls
+        self.lvl = 1
 
         #the grid of the maze
         #each cell of the maze is one of the following:
@@ -34,6 +90,16 @@ class Maze(object):
         #list of coordinates of exposed but undetermined cells.
         self.frontier = []
         self.create()
+        for y in range(self.yhigh):
+            for x in range(self.xwide): # #.E
+                if self.field[y][x] is "#":
+                    self.field[y][x] = Room("#", "wall")
+                if self.field[y][x] is ".":
+                    self.field[y][x] = Room(".", "empty")
+                if self.field[y][x] is "E":
+                    monster = random.choice(Enemies(self.lvl).monsters[0])
+                    self.field[y][x] = Room("E", "enemy", monster)
+
     def carve(self, y, x):
         '''Make the cell at y,x a space.
 
@@ -90,7 +156,7 @@ class Maze(object):
                 edgestate += 8
 
         if nodiagonals:
-            #if this would make a diagonal connecition, forbid it
+            #if this would make a diagonal connection, forbid it
                 #the following steps make the test a bit more complicated and are not necessary,
                 #but without them the mazes don't look as good
             if edgestate == 1:
@@ -169,18 +235,145 @@ class Maze(object):
             for x in range(self.xwide):
                 if self.field[y][x] == '?':
                     self.field[y][x] = '#'
+        #random enemies
+        monsters = abs(random.randint(5, 30))
+        print "Number of monsters: %i" % monsters
+        counter = 0
+        for y in range(self.yhigh):
+            for x in range(self.xwide):
+                z = random.randint(0, 20)
+                if z is 1:
+                    if self.field[y][x] is ("#" or "E"):
+                        pass
+                    else:
+                        self.field[y][x] = "E"
+                        counter += 1
+                if counter is monsters:
+                    break
+            if counter is monsters:
+                break
         return self.field
-
         #print the maze
     def print_maze(self):
         for y in range(self.yhigh):
             s = ""
             for x in range(self.xwide):
-                s += self.field[y][x]
+                s += self.field[y][x].symbol
             print(s)
 
+    def start_player_at_maze(self, px, py):
+        collisions = []
+        z = ""
+        self.Player.pos_x = px
+        self.Player.pos_y = py
+        for y in range(self.yhigh):
+            s = ""
+            if y is py:
+                for x in range(self.xwide):
+                    if x is px:
+                        #s = list(s)
+                        if self.field[y][x].collision is True:
+                            collisions.append((py, px))
+                            px = random.randrange(0, self.xwide)
+                            py = random.randrange(0, self.yhigh)
+                            s += self.field[y][x].symbol
+                        else:
+                            s += "@"
+                            self.Player.pos_x = x
+                            self.Player.pos_y = y
+                    else:
+                        s += self.field[y][x].symbol
+                z += s
 
+            else:
+                for x in range(self.xwide):
+                    s += self.field[y][x].symbol
+                z += s
+            print(s)
+        if "@" not in z:
+            px = random.randrange(0, self.xwide)
+            py = random.randrange(0, self.yhigh)
+            clear()
+            self.start_player_at_maze(px, py)
+        print "Player position: %i, %i" % (px, py)
+        if len(collisions) is not 0: print("Bouncing collisions at %s" % collisions); return collisions
 
+    def print_player_at_maze(self, px, py):
+        collisions = []
+        z = ""
+        for y in range(self.yhigh):
+            s = ""
+            if y is py:
+                for x in range(self.xwide):
+                    if x is px:
+                        s += "@"
+                        self.Player.pos_x = x
+                        self.Player.pos_y = y
+                    else:
+                        s += self.field[y][x].symbol
+                z += s
+
+            else:
+                for x in range(self.xwide):
+                    s += self.field[y][x].symbol
+                z += s
+            print(s)
+        #if "@" not in z:
+        #    clear()
+        #    self.print_player_at_maze(px, py)
+        print "Player position: %i, %i" % (px, py)
+        if len(collisions) is not 0: print("Bouncing collisions at %s" % collisions); return collisions
+
+    def move(self, px, py):
+        clear()
+        printed = False
+        #IndexError countermeasure
+        try:
+            collision = self.field[py][px].collision
+            enemy_ = self.field[py][px].fight
+        except IndexError:
+            collision = True
+        #exceeding the playfield
+        if px < 0:
+            px = 0
+        if px > self.xwide:
+            px = self.xwide
+        if py < 0:
+            py = 0
+        if py > self.yhigh:
+            py = self.yhigh
+        #fight tests
+        if enemy_ is True:
+            print self.field[py][px].enemy_cls
+            outcome = Fight().fight(self.Player, self.field[py][px].enemy_cls)
+            if outcome is "enemy_dead":
+                self.field[py][px] = Room(".")
+            if outcome is "player_dead":
+                p("So sorry, you have to leave the maze")
+                import os
+                os._exit(1)
+            if outcome is "fled":
+                self.Player.pos_x = self.Player.pos_x
+                self.Player.pos_y = self.Player.pos_y
+                self.print_player_at_maze(self.Player.pos_x, self.Player.pos_y)
+                printed = True
+
+        if enemy_ is False:
+            pass
+        #collisions tests
+        if printed is False:
+            if collision is True:
+                self.Player.pos_x = self.Player.pos_x
+                self.Player.pos_y = self.Player.pos_y
+                self.print_player_at_maze(self.Player.pos_x, self.Player.pos_y)
+            if collision is False:
+                self.Player.pos_x = px
+                self.Player.pos_y = py
+                self.print_player_at_maze(self.Player.pos_x, self.Player.pos_y)
+                self.Player.currentHP += self.Player.regenratio
+                self.Player.currentMA += self.Player.regenratio
+#TODO Fix collisions
+#TODO Monsters generator --fast
 #20:21:15<@Marcin> obiekt player, metoda move(x, z), player przekazany print_maze
 #20:17:41<@Marcin> używasz arraya z dwoma elementami zamiast obiektu z wartościami x  oraz z
 
