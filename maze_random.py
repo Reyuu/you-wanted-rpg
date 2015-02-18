@@ -24,19 +24,24 @@ class Enemies(object):
         ]
         self.monsters = []
         if mazelvl in range(0, 11):
-            self.monsters.append(self.instances[0])
+            for i in self.instances[0]:
+                self.monsters.append(i)
         if mazelvl in range(5, 16):
-            self.monsters.append(self.instances[1])
+            for i in self.instances[1]:
+                self.monsters.append(i)
         if mazelvl in range(10, 21):
-            self.monsters.append(self.instances[2])
+            for i in self.instances[2]:
+                self.monsters.append(i)
         if mazelvl in range(15, 26):
-            self.monsters.append(self.instances[3])
+            for i in self.instances[3]:
+                self.monsters.append(i)
         if mazelvl in range(25, 31):
-            self.monsters.append(self.instances[4])
+            for i in self.instances[4]:
+                self.monsters.append(i)
         if mazelvl is 31:
             #final boss
             self.monsters = []
-            self.monsters.append(self.instances[5])
+            self.monsters.append(self.instances[5][0])
 
 class Room(object):
     def __init__(self, symbol, type="empty", *args):
@@ -97,7 +102,7 @@ class Maze(object):
                 if self.field[y][x] is ".":
                     self.field[y][x] = Room(".", "empty")
                 if self.field[y][x] is "E":
-                    monster = random.choice(Enemies(self.lvl).monsters[0])
+                    monster = random.choice(Enemies(self.lvl).monsters)
                     self.field[y][x] = Room("E", "enemy", monster)
 
     def carve(self, y, x):
@@ -296,6 +301,7 @@ class Maze(object):
             clear()
             self.start_player_at_maze(px, py)
         print "Player position: %i, %i" % (px, py)
+        print("%i/%i HP" % (self.Player.currentHP, self.Player.HP))
         if len(collisions) is not 0: print("Bouncing collisions at %s" % collisions); return collisions
 
     def print_player_at_maze(self, px, py):
@@ -321,7 +327,8 @@ class Maze(object):
         #if "@" not in z:
         #    clear()
         #    self.print_player_at_maze(px, py)
-        print "Player position: %i, %i" % (px, py)
+        print("Player position: %i, %i" % (px, py))
+        print("%i/%i HP" % (self.Player.currentHP, self.Player.HP))
         if len(collisions) is not 0: print("Bouncing collisions at %s" % collisions); return collisions
 
     def move(self, px, py):
@@ -333,6 +340,7 @@ class Maze(object):
             enemy_ = self.field[py][px].fight
         except IndexError:
             collision = True
+            enemy_ = False
         #exceeding the playfield
         if px < 0:
             px = 0
@@ -344,7 +352,7 @@ class Maze(object):
             py = self.yhigh
         #fight tests
         if enemy_ is True:
-            print self.field[py][px].enemy_cls
+            #print self.field[py][px].enemy_cls
             outcome = Fight().fight(self.Player, self.field[py][px].enemy_cls)
             if outcome is "enemy_dead":
                 self.field[py][px] = Room(".")
@@ -371,8 +379,11 @@ class Maze(object):
                 self.Player.pos_y = py
                 self.print_player_at_maze(self.Player.pos_x, self.Player.pos_y)
                 self.Player.currentHP += self.Player.regenratio
+                if self.Player.currentHP >= self.Player.HP:
+                    self.Player.currentHP = self.Player.HP
                 self.Player.currentMA += self.Player.regenratio
-#TODO Fix collisions
+                if self.Player.currentMA >= self.Player.MA:
+                    self.Player.currentMA = self.Player.MA
 #TODO Monsters generator --fast
 #20:21:15<@Marcin> obiekt player, metoda move(x, z), player przekazany print_maze
 #20:17:41<@Marcin> używasz arraya z dwoma elementami zamiast obiektu z wartościami x  oraz z

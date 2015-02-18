@@ -1,5 +1,84 @@
 import random
 
+def getTerminalSize():
+   import platform
+   current_os = platform.system()
+   tuple_xy=None
+   if current_os == 'Windows':
+       tuple_xy = _getTerminalSize_windows()
+       if tuple_xy is None:
+          tuple_xy = _getTerminalSize_tput()
+          # needed for window's python in cygwin's xterm!
+   if current_os == 'Linux' or current_os == 'Darwin' or  current_os.startswith('CYGWIN'):
+       tuple_xy = _getTerminalSize_linux()
+   if tuple_xy is None:
+       print "default"
+       tuple_xy = (80, 25)      # default value
+   return tuple_xy
+
+def _getTerminalSize_windows():
+    res=None
+    try:
+        from ctypes import windll, create_string_buffer
+
+        # stdin handle is -10
+        # stdout handle is -11
+        # stderr handle is -12
+
+        h = windll.kernel32.GetStdHandle(-12)
+        csbi = create_string_buffer(22)
+        res = windll.kernel32.GetConsoleScreenBufferInfo(h, csbi)
+    except:
+        return None
+    if res:
+        import struct
+        (bufx, bufy, curx, cury, wattr,
+         left, top, right, bottom, maxx, maxy) = struct.unpack("hhhhHhhhhhh", csbi.raw)
+        sizex = right - left + 1
+        sizey = bottom - top + 1
+        return sizex, sizey
+    else:
+        return None
+
+def _getTerminalSize_tput():
+    # get terminal width
+    # src: http://stackoverflow.com/questions/263890/how-do-i-find-the-width-height-of-a-terminal-window
+    try:
+       import subprocess
+       proc=subprocess.Popen(["tput", "cols"],stdin=subprocess.PIPE,stdout=subprocess.PIPE)
+       output=proc.communicate(input=None)
+       cols=int(output[0])
+       proc=subprocess.Popen(["tput", "lines"],stdin=subprocess.PIPE,stdout=subprocess.PIPE)
+       output=proc.communicate(input=None)
+       rows=int(output[0])
+       return (cols,rows)
+    except:
+       return None
+
+
+def _getTerminalSize_linux():
+    def ioctl_GWINSZ(fd):
+        try:
+            import fcntl, termios, struct, os
+            cr = struct.unpack('hh', fcntl.ioctl(fd, termios.TIOCGWINSZ,'1234'))
+        except:
+            return None
+        return cr
+    cr = ioctl_GWINSZ(0) or ioctl_GWINSZ(1) or ioctl_GWINSZ(2)
+    if not cr:
+        try:
+            fd = os.open(os.ctermid(), os.O_RDONLY)
+            cr = ioctl_GWINSZ(fd)
+            os.close(fd)
+        except:
+            pass
+    if not cr:
+        try:
+            cr = (env['LINES'], env['COLUMNS'])
+        except:
+            return None
+    return int(cr[1]), int(cr[0])
+
 
 def p(string):
     print(string)
@@ -22,9 +101,12 @@ def wait(timex):
     # 1000 = 10s
     # 10000 = 100s
     import time
-    for i in range(0, timex):
-        p(".")
-        time.sleep(timex/timex)
+    if type(timex) is not int:
+        time.sleep(timex)
+    else:
+        for i in range(0, timex):
+            p(".")
+            time.sleep(timex/timex)
     del time
 
 
@@ -33,6 +115,57 @@ def clear():
     os.system('cls' if os.name == 'nt' else 'clear')
     del os
 
+
+def credits():
+    clear()
+    p("rey444xd3 aka Rey - creator and main developer")
+    wait(1)
+    p("Special thanks:")
+    wait(0.5)
+    p("Marcin for giving me tips about my code and blasting new ideas")
+    wait(0.5)
+    p("maciej01 for various help")
+    wait(2)
+    p("Code stol- borrowed:")
+    wait(0.5)
+    p("d.factorial's growing tree maze algorithm \n"+
+      "http://pcg.wdfiles.com/local--files/pcg-algorithm%3Amaze/growingtree.py")
+    wait(0.5)
+    p("getTerminalSize \n http://stackoverflow.com/questions/566746/how-to-get-console-window-width-in-python")
+    wait(3)
+    import os
+    os._exit(1)
+
+class Observable:
+    def __init__(self):
+        self.__observers = []
+
+    def register_observer(self, observer):
+        self.__observers.append(observer)
+
+    def notify_observers(self, *args, **kwargs):
+        for observer in self.__observers:
+            observer(self, *args, **kwargs)
+
+
+class Observer:
+    def __init__(self, observable):
+        observable.register_observer(self.notify)
+        self.tenlinesbuffer = []
+        self.counter = 0
+
+    def notify(self, observable, *args, **kwargs):
+        sizex,sizey=getTerminalSize()
+        clear()
+        self.counter += 1
+        self.tenlinesbuffer.append("[%i] %s" % (self.counter,args[0]))
+        if len(self.tenlinesbuffer) is sizey-3:
+            self.tenlinesbuffer.pop(0)
+        self.print_buffer()
+
+    def print_buffer(self):
+        for i in self.tenlinesbuffer:
+            print(i)
 
 class IncorrectPiece(Exception):
     def __init__(self, piece):
@@ -110,17 +243,18 @@ class Level:
         self.points = 0
         self.EXP = 0
 
-    def check_level(self, exp):
+    def check_level(self):
         for i in self._lvl:
-            if (self._lvl[i][0] < exp < self._lvl[i][1]):
+            if (self._lvl[i][0] < self.EXP < self._lvl[i][1]):
                 return int(i)
             else:
                 pass
+        return 0
 
-    def check_if_level_advanced(self, exp):
-        if self.last_lvl is not self.check_level(exp):
-            self.points += (self.check_level(exp) - self.last_lvl) * 5
-            self.last_lvl = self.check_level(exp)
+    def check_if_level_advanced(self):
+        if self.last_lvl is not self.check_level(self.EXP):
+            self.points += (self.check_level(self.EXP) - self.last_lvl) * 5
+            self.last_lvl = self.check_level(self.EXP)
             return True
         else:
             return False
@@ -151,7 +285,7 @@ class SkillSystem:
         self.Dodging = 0.0
         self.Crafting = 0.0
         self.StandardRatio = 0.01
-        self.ExtremeRatio = 0.0001
+        self.ExtremeRatio = 0.001
 
     def add(self, skill, ratio):
         skill += ratio
@@ -231,28 +365,37 @@ class Fight:
         Enemy_hitchance = ((Enemy.DEX/2)+(Enemy.STR/2)+Enemy.bonushitchance - (Player.DEX/3))
         fight_state = "fight"
         who_first = random.randint(1, 2)
+        battlelog = Observable()
+        observer = Observer(battlelog)
 
         def enemy_turn():
                 #enemy turn
                 #TODO dodge roll
                 hitchance_roll = random.randint(0, 100)
-                print("Enemy: %i : %i" % (hitchance_roll, Enemy_hitchance))
+                atk_roll = random.randint(Enemy.ATK_P, int(Enemy.ATK_P+(Enemy.ATK_P/100)*1.4))
+                fight_state = "fight"
+                #print("Enemy: %i : %i" % (hitchance_roll, Enemy_hitchance))
                 if hitchance_roll < Enemy_hitchance:
                     #hit
-                    atk_roll = random.randint(Enemy.ATK_P, int(Enemy.ATK_P+(Enemy.ATK_P/100)*1.4))
                     Player.currentHP -= atk_roll
-                    p("You've been hit for %i, %iHP left" % (atk_roll, Player.currentHP))
+                    battlelog.notify_observers("%s: hit for %i, your %iHP left; chances %i : %i" % (Enemy.name,atk_roll,
+                                                                                               Player.currentHP,
+                                                                                               hitchance_roll,
+                                                                                               Enemy_hitchance))
                     if self.check_if_death(Player) is True:
                         fight_state = "player_dead"
                     else:
                         fight_state = "fight"
                 if hitchance_roll > Enemy_hitchance:
-                    p("%s missed!" % Enemy.name)
+                    battlelog.notify_observers("%s missed!; chances %i - %i" % (Enemy.name,
+                                                                                hitchance_roll,
+                                                                                Enemy_hitchance))
                     fight_state = "fight"
                 #wait(3)
                 return fight_state
 
         def player_turn():
+            fight_state = "fight"
             ch = choice(["attack", "try to flee", "manually change game state"])
             try:
                 ch = int(ch)
@@ -261,33 +404,39 @@ class Fight:
             if ch is 1:
                 #atk_p roll
                 hitchance_roll = random.randint(0, 100)
-                print("You: %i : %i" % (hitchance_roll, Player_hitchance))
+                atk_roll = random.randint(Player.ATK_P, int(Player.ATK_P+(Player.ATK_P/100)*1.4))
+                Player.skill.CombatP += Player.skill.StandardRatio
+                #print("You: %i : %i" % (hitchance_roll, Player_hitchance))
                 if hitchance_roll < Player_hitchance:
                     #hit
-                    print("ATK roll: %i - %i" % (Player.ATK_P, int(Player.ATK_P+(Player.ATK_P/100)*1.4)))
-                    atk_roll = random.randint(Player.ATK_P, int(Player.ATK_P+(Player.ATK_P/100)*1.4))
+                    #print("ATK roll: %i - %i" % (Player.ATK_P, int(Player.ATK_P+(Player.ATK_P/100)*1.4)))
                     Enemy.currentHP -= atk_roll
-                    p("You've hit %s for %i, %iHP left" % (Enemy.name, atk_roll, Enemy.currentHP))
+                    battlelog.notify_observers("You: hit %s for %i, %s's %iHP left'; chances %i - %i" % (Enemy.name,
+                                                                                                    atk_roll,
+                                                                                                    Enemy.name,
+                                                                                                    Enemy.currentHP,
+                                                                                                    Player.ATK_P,
+                                                                                                    int(Player.ATK_P+(Player.ATK_P/100)*1.4)))
                     fight_state = "fight"
                 if hitchance_roll > Player_hitchance:
                     #miss
-                    p("You've missed!")
+                    battlelog.notify_observers("You: missed!; chances %i - %i" % (hitchance_roll, Player_hitchance))
                     fight_state = "fight"
             if ch is 2:
                 #flee roll
                 flee_roll = random.randint(0, 100)
                 if flee_roll < Player.DEX+10:
                     fight_state = "fled"
-                    p("You've fled!")
+                    battlelog.notify_observers("You: fled!")
                 else:
-                    p("You've failed to flee!")
+                    battlelog.notify_observers("You: failed to flee!")
                     fight_state = "fight"
             if ch is 3:
                 ch = choice(["player dead", "enemy dead", "fled"])
                 try:
                     ch = int(ch)
                 except:
-                    print("That wasn't integer")
+                    p("That wasn't integer")
                 if ch is 1:
                     fight_state = "player_dead"
                 if ch is 2:
@@ -296,6 +445,7 @@ class Fight:
                     fight_state = "fled"
             elif ch not in (1, 2, 3):
                 p("Wrong command, you lose a turn! Be careful next time!")
+                fight_state = "fight"
             return fight_state
 
 
@@ -318,6 +468,7 @@ class Fight:
                     fight_state = "player_dead"
                 if self.check_if_fight(fight_state) is False:
                     break
+
             if who_first is 2:
                 fight_state = enemy_turn()
                 if self.check_if_death(Player) is True:
@@ -331,18 +482,26 @@ class Fight:
                     break
                 if fight_state is "fled":
                     break
-        clear()
         if fight_state == "enemy_dead":
+            clear()
+            observer.print_buffer()
             p("You've defeated the foe! Good job!")
             Enemy.after_fight()
             Player.LVL_c.EXP += Enemy.EXP
             wait(3)
+            clear()
         if fight_state == "player_dead":
+            clear()
+            observer.print_buffer()
             p("You are dead. Bad job!")
             wait(3)
+            clear()
         if fight_state == "fled":
+            clear()
+            observer.print_buffer()
             p("You've fled. Average job!")
             wait(3)
+            clear()
         return fight_state
 
 """
@@ -361,11 +520,5 @@ class Monster(Room):
         self.monster_cls = monster_cls
         self.monster = True"""
 
-
-
 #TODO Test chamber
-#TODO Walking around
-#TODO God-fukcking-damn fight
-#TODO Random dungeon generator
-#TODO SkillSystem
 #TODO Crafting

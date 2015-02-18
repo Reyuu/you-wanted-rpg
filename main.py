@@ -18,7 +18,34 @@ while 1:
         Maze_c.move(Player.pos_x-1, Player.pos_y)
     if x == "d":
         Maze_c.move(Player.pos_x+1, Player.pos_y)
+    if x == "c":
+        for i in (Player.LVL_c.EXP, Player.LVL_c.check_if_level_advanced()):
+            p(i)
+    if "e.." in x:
+        y = x.split("e..")[1]
+        if "self." in y:
+            y = y.replace("self.", "Player.")
+        exec(y)
+    if "p.." in x:
+        y = x.split("p..")[1]
+        if "self." in y:
+            y = y.replace("self.", "Player.")
+        exec("y = %s" % (y))
+        p(y)
+    if x == "eval..":
+        p("eval mode engaged")
+        while 1:
+            x = get()
+            if "exit..eval" in x:
+                p("eval mode disengaged")
+                break
+            else:
+                exec(x)
+
     if x == "q":
+        credits()
+        _exit(1)
+    if x == "qq":
         _exit(1)
 
 #Fight test
